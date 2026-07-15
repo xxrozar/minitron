@@ -1,35 +1,16 @@
 name: Daily Prospecting Run
-
 on:
   schedule:
     - cron: "0 9 * * *"
   workflow_dispatch:
-
 jobs:
   prospecting:
-    runs-on: ubuntu-22.04
-
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
-      - name: Use Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-          cache: 'npm'
-
-      - name: Install & Run
-        run: |
-          npm install
-          npm start
+      - run: npm install --legacy-peer-deps
+      - run: npm start
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-
-      - name: Save Results
-        if: always()
-        run: |
-          git config user.email "bot@minitron.dev"
-          git config user.name "Minitron"
-          git add companies_found.json tracking.json 2>/dev/null || true
-          git commit -m "Prospecting results" 2>/dev/null || true
-          git push 2>/dev/null || true
+      - run: git config user.email "bot@minitron" && git config user.name "Bot" && git add . && git commit -m "Results" 2>/dev/null || true && git push 2>/dev/null || true
+        continue-on-error: true

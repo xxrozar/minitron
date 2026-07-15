@@ -1,0 +1,21 @@
+{
+  "name": "minitron",
+  "version": "1.0.0",
+  "description": "AI prospecting bot - finds companies, sends LinkedIn messages & cold emails",
+  "main": "minitron.js",
+  "scripts": {
+    "start": "node minitron.js",
+    "test": "node test.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.24.0",
+    "axios": "^1.7.0",
+    "dotenv": "^16.4.0",
+    "google-auth-library": "^9.6.0",
+    "google-spreadsheet": "^4.1.1"
+  },
+  "devDependencies": {},
+  "keywords": ["prospecting", "linkedin", "email", "ai"],
+  "author": "Minitron",
+  "license": "MIT"
+}

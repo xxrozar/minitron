@@ -3,6 +3,7 @@ const Anthropic = require("@anthropic-ai/sdk");
 const fs = require("fs");
 const path = require("path");
 const axios = require("axios");
+const { google } = require("googleapis");
 require("dotenv").config();
 
 const client = new Anthropic({
@@ -201,6 +202,50 @@ async function sendLinkedInViaBuster(name, profileUrl) {
   }
 }
 
+async function writeToGoogleSheets(companies, emailResults, linkedinResults) {
+  try {
+    const keyStr = process.env.GOOGLE_SHEETS_KEY;
+    if (!keyStr) {
+      console.log("⚠️ Google Sheets key not set - skipping sheet write");
+      return false;
+    }
+
+    const key = JSON.parse(keyStr);
+    const auth = new google.auth.GoogleAuth({
+      credentials: key,
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
+
+    const sheets = google.sheets({ version: "v4", auth });
+    const SHEET_ID = "1rkBlkmsm4M5FSE8YKipm1tPxhhDI_1k48xecfxoP914";
+
+    const rows = companies.map((c, i) => [
+      new Date().toLocaleDateString(),
+      c.name || "",
+      c.website || "",
+      c.founder || "",
+      emailResults[i] ? "sent" : "pending",
+      linkedinResults[i] ? "sent" : "pending",
+      new Date().toLocaleTimeString(),
+    ]);
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SHEET_ID,
+      range: "Sheet1!A:G",
+      valueInputOption: "USER_ENTERED",
+      resource: {
+        values: rows,
+      },
+    });
+
+    console.log(`✅ Data written to Google Sheet (${rows.length} rows)`);
+    return true;
+  } catch (e) {
+    console.log(`⚠️ Google Sheets write failed: ${e.message}`);
+    return false;
+  }
+}
+
 async function trackOutreach(companies, emailResults = [], linkedinResults = []) {
   const tracking = {
     timestamp: new Date().toISOString(),
@@ -266,7 +311,10 @@ async function main() {
     // Step 4: Track everything
     await trackOutreach(companies, emailResults, linkedinResults);
 
-    console.log("\n✅ DONE! Check companies_found.json and tracking.json");
+    // Step 5: Write to Google Sheets
+    await writeToGoogleSheets(companies, emailResults, linkedinResults);
+
+    console.log("\n✅ DONE! Check companies_found.json, tracking.json, and your Google Sheet");
   } catch (error) {
     console.error("Error:", error.message);
     process.exit(1);

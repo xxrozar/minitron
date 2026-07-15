@@ -12,7 +12,8 @@
     "axios": "^1.7.0",
     "dotenv": "^16.4.0",
     "google-auth-library": "^9.6.0",
-    "google-spreadsheet": "^4.1.1"
+    "google-spreadsheet": "^4.1.1",
+    "googleapis": "^118.0.0"
   },
   "devDependencies": {},
   "keywords": ["prospecting", "linkedin", "email", "ai"],

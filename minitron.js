@@ -54,48 +54,99 @@ Format as JSON array.`,
   return [];
 }
 
-async function generateLinkedInMessage(company, founder) {
-  const response = await client.messages.create({
-    model: "claude-opus-4-8",
-    max_tokens: 300,
-    messages: [
-      {
-        role: "user",
-        content: `Write a personalized LinkedIn connection message for ${founder} at ${company}.
-The message should be:
-- Genuine and specific (mention their company)
-- Short (under 200 chars)
-- Reference their work in AI/tech
-- Ask to connect for industry insights
+async function generateLinkedInMessage(company, founder, description) {
+  try {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey || apiKey.length < 20) throw new Error("No API key");
 
-Just the message, no preamble.`,
-      },
-    ],
-  });
+    const client = new Anthropic({ apiKey });
+    const response = await client.messages.create({
+      model: "claude-opus-4-8",
+      max_tokens: 300,
+      messages: [
+        {
+          role: "user",
+          content: `Create a PERSONALIZED LinkedIn message for ${founder} at ${company}.
+Company focus: ${description}
 
-  return response.content[0].text;
+Use this template and customize it:
+Hi ${founder},
+I've been following ${company}'s work in AI and infrastructure, and I'm impressed with what you're building.
+We specialize in helping AI teams like yours scale infrastructure 10x faster. Recently worked with teams doing similar things helped them deploy in 2 weeks instead of 2 months.
+Not sure if that's relevant to your current roadmap, but thought I'd say hi.
+Would be great to connect!
+Best,
+Qaush
+WithStrive
+
+IMPORTANT: Keep under 250 characters, make it personalized based on ${description}, remove all dashes between words.`,
+        },
+      ],
+    });
+
+    return response.content[0].text;
+  } catch (e) {
+    return `Hi ${founder}, I've been following ${company}'s work and I'm impressed. We help AI teams scale infrastructure 10x faster. Would love to connect!`;
+  }
 }
 
-async function generateColdEmail(company, website, founder) {
-  const response = await client.messages.create({
-    model: "claude-opus-4-8",
-    max_tokens: 400,
-    messages: [
-      {
-        role: "user",
-        content: `Write a cold email to ${founder} at ${company} (${website}).
-Subject line + body.
-Positioning: You help AI companies scale their GTM.
-Keep it short, benefit-focused, with a soft CTA (coffee chat).
-Format:
-SUBJECT: [subject]
-BODY:
-[email body]`,
-      },
-    ],
-  });
+async function generateColdEmail(company, website, founder, description) {
+  try {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey || apiKey.length < 20) throw new Error("No API key");
 
-  return response.content[0].text;
+    const client = new Anthropic({ apiKey });
+    const response = await client.messages.create({
+      model: "claude-opus-4-8",
+      max_tokens: 400,
+      messages: [
+        {
+          role: "user",
+          content: `Create a PERSONALIZED cold email for ${founder} at ${company} (${description}).
+Use this template and customize it heavily:
+
+SUBJECT: 3 Ways AI Teams Waste Time (and How We Fixed It)
+
+BODY:
+Hi ${founder},
+
+Most AI founders spend 80% of their time on infrastructure instead of building features.
+We noticed this pattern across 30+ AI companies we've worked with:
+
+Weeks spent on deployment pipelines
+Months getting models to production
+Constant firefighting with infrastructure
+
+WithStrive helps AI companies like ${company}:
+
+1. Deploy ML models in days (not months)
+2. Scale infrastructure without technical debt
+3. Go from prototype to production in weeks
+
+Would love to explore if we could do the same for ${company}.
+Are you open to a 15 minute conversation?
+
+Best,
+Qaush
+WithStrive
+withstrive.in
+
+IMPORTANT: Personalize with details about ${company} and ${description}. Remove all dashes.`,
+        },
+      ],
+    });
+
+    return response.content[0].text;
+  } catch (e) {
+    return `SUBJECT: 3 Ways AI Teams Waste Time
+BODY:
+Hi ${founder},
+We help AI companies like ${company} deploy models in days instead of months.
+Would love a quick chat?
+Best,
+Qaush
+WithStrive`;
+  }
 }
 
 async function sendEmailViaSendGrid(toEmail, subject, body) {

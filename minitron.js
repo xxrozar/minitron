@@ -2,6 +2,7 @@
 const Anthropic = require("@anthropic-ai/sdk");
 const fs = require("fs");
 const path = require("path");
+const axios = require("axios");
 require("dotenv").config();
 
 const client = new Anthropic({
@@ -97,17 +98,69 @@ BODY:
   return response.content[0].text;
 }
 
-async function trackOutreach(companies) {
+async function sendEmailViaSendGrid(toEmail, subject, body) {
+  try {
+    const apiKey = process.env.SENDGRID_API_KEY;
+    if (!apiKey) {
+      console.log("⚠️ SendGrid API key not set - skipping email");
+      return false;
+    }
+
+    await axios.post("https://api.sendgrid.com/v3/mail/send", {
+      personalizations: [{ to: [{ email: toEmail }] }],
+      from: { email: process.env.EMAIL_FROM || "gul@withstrive.in" },
+      subject: subject,
+      content: [{ type: "text/plain", value: body }],
+    }, {
+      headers: { Authorization: `Bearer ${apiKey}` }
+    });
+
+    console.log(`✅ Email sent to ${toEmail}`);
+    return true;
+  } catch (e) {
+    console.log(`⚠️ Email failed: ${e.message}`);
+    return false;
+  }
+}
+
+async function sendLinkedInViaBuster(name, profileUrl) {
+  try {
+    const apiKey = process.env.PHANTOM_BUSTER_KEY;
+    if (!apiKey) {
+      console.log("⚠️ Phantom Buster key not set - skipping LinkedIn");
+      return false;
+    }
+
+    // Phantom Buster API for LinkedIn connection
+    await axios.post("https://api.phantombuster.com/api/v2/agents/launch", {
+      agentId: "7496",  // LinkedIn profile visitor agent
+      arguments: {
+        spreadsheetUrl: profileUrl,
+        numberOfLinesPerLaunch: 1,
+      }
+    }, {
+      headers: { "X-Phantom-Auth-Token": apiKey }
+    });
+
+    console.log(`✅ LinkedIn connection sent to ${name}`);
+    return true;
+  } catch (e) {
+    console.log(`⚠️ LinkedIn failed: ${e.message}`);
+    return false;
+  }
+}
+
+async function trackOutreach(companies, emailResults = [], linkedinResults = []) {
   const tracking = {
     timestamp: new Date().toISOString(),
     total_companies: companies.length,
-    linkedin_messages_generated: companies.length,
-    cold_emails_generated: companies.length,
-    companies: companies.map((c) => ({
+    emails_sent: emailResults.filter(r => r).length,
+    linkedin_connections_sent: linkedinResults.filter(r => r).length,
+    companies: companies.map((c, i) => ({
       name: c.name,
       website: c.website,
-      linkedin_status: "pending",
-      email_status: "pending",
+      linkedin_status: linkedinResults[i] ? "sent" : "pending",
+      email_status: emailResults[i] ? "sent" : "pending",
       created_at: new Date().toISOString(),
     })),
   };
@@ -128,31 +181,39 @@ async function main() {
       return;
     }
 
-    // Step 2: Generate messages for first 3 companies (demo)
-    console.log("\n💬 Generating LinkedIn messages...");
-    for (let i = 0; i < Math.min(3, companies.length); i++) {
+    // Step 2: Send LinkedIn connections
+    console.log("\n💬 Sending LinkedIn connections...");
+    const linkedinResults = [];
+    for (let i = 0; i < companies.length; i++) {
       const company = companies[i];
-      const message = await generateLinkedInMessage(
+      const result = await sendLinkedInViaBuster(
         company.name,
-        company.founder || "Team"
+        company.linkedin || "#"
       );
-      console.log(`\n[${company.name}]\n${message}`);
+      linkedinResults.push(result);
     }
 
-    // Step 3: Generate emails for first 3 companies (demo)
-    console.log("\n\n📧 Generating cold emails...");
-    for (let i = 0; i < Math.min(3, companies.length); i++) {
+    // Step 3: Send cold emails
+    console.log("\n📧 Sending cold emails...");
+    const emailResults = [];
+    for (let i = 0; i < companies.length; i++) {
       const company = companies[i];
       const email = await generateColdEmail(
         company.name,
         company.website,
         company.founder || "Team"
       );
-      console.log(`\n[${company.name}]\n${email}`);
+      const [subject, body] = email.split("BODY:").map(s => s.trim());
+      const result = await sendEmailViaSendGrid(
+        company.founder_email || "contact@" + company.website.replace("https://", "").replace("http://", ""),
+        subject.replace("SUBJECT:", "").trim(),
+        body
+      );
+      emailResults.push(result);
     }
 
     // Step 4: Track everything
-    await trackOutreach(companies);
+    await trackOutreach(companies, emailResults, linkedinResults);
 
     console.log("\n✅ DONE! Check companies_found.json and tracking.json");
   } catch (error) {

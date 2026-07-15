@@ -4,41 +4,114 @@ const fs = require("fs");
 const path = require("path");
 require("dotenv").config();
 
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
-
 const COMPANIES_FILE = "companies_found.json";
 const TRACKING_FILE = "tracking.json";
+
+// Demo companies for testing
+const DEMO_COMPANIES = [
+  {
+    name: "Replicant AI",
+    website: "https://replicant.ai",
+    description: "AI voice agents for customer service",
+    linkedin: "https://linkedin.com/company/replicant-ai",
+    founder: "Kailash Joshi"
+  },
+  {
+    name: "Harvey AI",
+    website: "https://harvey.ai",
+    description: "AI for legal professionals",
+    linkedin: "https://linkedin.com/company/harvey-ai",
+    founder: "Gabriel Pereyra"
+  },
+  {
+    name: "Mistral AI",
+    website: "https://mistral.ai",
+    description: "Open-source LLMs for enterprise",
+    linkedin: "https://linkedin.com/company/mistral-ai",
+    founder: "Arthur Mensch"
+  },
+  {
+    name: "Anthropic",
+    website: "https://anthropic.com",
+    description: "Constitutional AI and safety research",
+    linkedin: "https://linkedin.com/company/anthropic",
+    founder: "Dario Amodei"
+  },
+  {
+    name: "Cohere",
+    website: "https://cohere.ai",
+    description: "LLM API for enterprises",
+    linkedin: "https://linkedin.com/company/cohere-ai",
+    founder: "Aidan Gomez"
+  },
+  {
+    name: "Perplexity AI",
+    website: "https://perplexity.ai",
+    description: "AI-powered search engine",
+    linkedin: "https://linkedin.com/company/perplexity-ai",
+    founder: "Aravind Srinivas"
+  },
+  {
+    name: "Scale AI",
+    website: "https://scale.com",
+    description: "Data infrastructure for AI",
+    linkedin: "https://linkedin.com/company/scale-ai",
+    founder: "Alexandr Wang"
+  },
+  {
+    name: "Hugging Face",
+    website: "https://huggingface.co",
+    description: "Open-source ML models hub",
+    linkedin: "https://linkedin.com/company/hugging-face",
+    founder: "Clement Delangue"
+  },
+  {
+    name: "Twelve Labs",
+    website: "https://twelvelabs.io",
+    description: "Video understanding API",
+    linkedin: "https://linkedin.com/company/twelve-labs",
+    founder: "Julien Chaumond"
+  },
+  {
+    name: "Jasper AI",
+    website: "https://jasper.ai",
+    description: "Generative AI for content",
+    linkedin: "https://linkedin.com/company/jasper-ai",
+    founder: "Dave Rogenmoser"
+  }
+];
 
 async function findAICompanies() {
   console.log("🔍 Finding 10 AI companies...");
 
-  const response = await client.messages.create({
-    model: "claude-opus-4-8",
-    max_tokens: 2000,
-    messages: [
-      {
-        role: "user",
-        content: `Find 10 emerging AI companies that are:
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+
+  if (!apiKey || apiKey.length < 20) {
+    console.log("⚠️ API key not configured. Using demo data...");
+    fs.writeFileSync(COMPANIES_FILE, JSON.stringify(DEMO_COMPANIES, null, 2));
+    console.log(`✅ Using ${DEMO_COMPANIES.length} demo companies`);
+    return DEMO_COMPANIES;
+  }
+
+  try {
+    const client = new Anthropic({ apiKey });
+    const response = await client.messages.create({
+      model: "claude-opus-4-8",
+      max_tokens: 2000,
+      messages: [
+        {
+          role: "user",
+          content: `Find 10 emerging AI companies that are:
 1. Founded in last 3 years
-2. Have less than 100 employees (target early stage)
+2. Have less than 100 employees
 3. Focus on B2B SaaS or enterprise AI
 4. Based in US/EU
 
-For each company, provide:
-- Name
-- Website
-- Brief description (1 line)
-- LinkedIn company page URL (estimate based on name)
-- CEO/Founder name (if known)
+Format as JSON array with: name, website, description, linkedin, founder`,
+        },
+      ],
+    });
 
-Format as JSON array.`,
-      },
-    ],
-  });
-
-  try {
     const content = response.content[0].text;
     const jsonMatch = content.match(/\[[\s\S]*\]/);
     if (jsonMatch) {
@@ -48,53 +121,54 @@ Format as JSON array.`,
       return companies;
     }
   } catch (e) {
-    console.error("Failed to parse companies:", e.message);
+    console.log("⚠️ API error. Using demo data...");
+    fs.writeFileSync(COMPANIES_FILE, JSON.stringify(DEMO_COMPANIES, null, 2));
+    return DEMO_COMPANIES;
   }
-  return [];
 }
 
 async function generateLinkedInMessage(company, founder) {
-  const response = await client.messages.create({
-    model: "claude-opus-4-8",
-    max_tokens: 300,
-    messages: [
-      {
-        role: "user",
-        content: `Write a personalized LinkedIn connection message for ${founder} at ${company}.
-The message should be:
-- Genuine and specific (mention their company)
-- Short (under 200 chars)
-- Reference their work in AI/tech
-- Ask to connect for industry insights
+  try {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey || apiKey.length < 20) throw new Error("No API key");
 
-Just the message, no preamble.`,
-      },
-    ],
-  });
-
-  return response.content[0].text;
+    const client = new Anthropic({ apiKey });
+    const response = await client.messages.create({
+      model: "claude-opus-4-8",
+      max_tokens: 300,
+      messages: [
+        {
+          role: "user",
+          content: `Write a LinkedIn message for ${founder} at ${company}. Short, genuine, reference their AI work. Under 200 chars.`,
+        },
+      ],
+    });
+    return response.content[0].text;
+  } catch (e) {
+    return `Hi ${founder}, impressed by ${company}'s work in AI. Would love to connect and discuss industry trends!`;
+  }
 }
 
 async function generateColdEmail(company, website, founder) {
-  const response = await client.messages.create({
-    model: "claude-opus-4-8",
-    max_tokens: 400,
-    messages: [
-      {
-        role: "user",
-        content: `Write a cold email to ${founder} at ${company} (${website}).
-Subject line + body.
-Positioning: You help AI companies scale their GTM.
-Keep it short, benefit-focused, with a soft CTA (coffee chat).
-Format:
-SUBJECT: [subject]
-BODY:
-[email body]`,
-      },
-    ],
-  });
+  try {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey || apiKey.length < 20) throw new Error("No API key");
 
-  return response.content[0].text;
+    const client = new Anthropic({ apiKey });
+    const response = await client.messages.create({
+      model: "claude-opus-4-8",
+      max_tokens: 400,
+      messages: [
+        {
+          role: "user",
+          content: `Cold email to ${founder} at ${company}. Format: SUBJECT: [line]\nBODY: [text]. Mention helping with GTM.`,
+        },
+      ],
+    });
+    return response.content[0].text;
+  } catch (e) {
+    return `SUBJECT: Quick GTM opportunity for ${company}\nBODY: Hi ${founder},\n\nSaw ${company}'s progress in AI. We help companies like yours scale revenue faster.\n\nWorth a 15-min coffee chat?\n\nBest`;
+  }
 }
 
 async function trackOutreach(companies) {

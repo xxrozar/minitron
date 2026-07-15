@@ -224,14 +224,15 @@ async function writeToGoogleSheets(companies, emailResults, linkedinResults) {
       c.name || "",
       c.website || "",
       c.founder || "",
-      emailResults[i] ? "sent" : "pending",
+      c.co_founder || "",
+      c.founder_email || "",
       linkedinResults[i] ? "sent" : "pending",
-      new Date().toLocaleTimeString(),
+      emailResults[i] ? "Yes" : "No",
     ]);
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SHEET_ID,
-      range: "Sheet1!A:G",
+      range: "Sheet1!A2:H",
       valueInputOption: "USER_ENTERED",
       resource: {
         values: rows,

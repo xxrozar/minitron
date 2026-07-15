@@ -2,7 +2,6 @@ name: Daily Prospecting Run
 
 on:
   schedule:
-    # Runs at 9 AM UTC daily
     - cron: "0 9 * * *"
   workflow_dispatch:
 
@@ -11,34 +10,26 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v3
         with:
-          node-version: "18.17.0"
+          node-version: '18'
+          cache: 'npm'
 
-      - name: Install dependencies
-        run: npm install
-
-      - name: Run Minitron
+      - name: Install & Run
+        run: |
+          npm install
+          npm start
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: npm start
 
-      - name: Upload results
-        uses: actions/upload-artifact@v4
-        with:
-          name: prospecting-results-${{ github.run_number }}
-          path: |
-            companies_found.json
-            tracking.json
-
-      - name: Commit results
+      - name: Save Results
+        if: always()
         run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "Minitron Bot"
-          git add companies_found.json tracking.json
-          git commit -m "Daily prospecting run - $(date)" || echo "No changes"
-          git push
-        continue-on-error: true
+          git config user.email "bot@minitron.dev"
+          git config user.name "Minitron"
+          git add companies_found.json tracking.json 2>/dev/null || true
+          git commit -m "Prospecting results" 2>/dev/null || true
+          git push 2>/dev/null || true

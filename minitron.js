@@ -164,21 +164,28 @@ WithStrive`;
   }
 }
 
-async function sendEmailViaSendGrid(toEmail, subject, body) {
+async function sendEmailViaGmail(toEmail, subject, body) {
   try {
-    const apiKey = process.env.SENDGRID_API_KEY;
-    if (!apiKey) {
-      console.log("⚠️ SendGrid API key not set - skipping email");
+    const user = process.env.EMAIL_USER;
+    const pass = process.env.EMAIL_PASSWORD;
+    if (!user || !pass) {
+      console.log("⚠️ Email credentials not set - skipping email");
       return false;
     }
 
-    await axios.post("https://api.sendgrid.com/v3/mail/send", {
-      personalizations: [{ to: [{ email: toEmail }] }],
-      from: { email: process.env.EMAIL_FROM || "gul@withstrive.in" },
+    const nodemailer = require("nodemailer");
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST || "smtp.zoho.in",
+      port: 465,
+      secure: true,
+      auth: { user, pass },
+    });
+
+    await transporter.sendMail({
+      from: user,
+      to: toEmail,
       subject: subject,
-      content: [{ type: "text/plain", value: body }],
-    }, {
-      headers: { Authorization: `Bearer ${apiKey}` }
+      text: body,
     });
 
     console.log(`✅ Email sent to ${toEmail}`);
@@ -189,34 +196,7 @@ async function sendEmailViaSendGrid(toEmail, subject, body) {
   }
 }
 
-async function sendLinkedInViaBuster(name, profileUrl) {
-  try {
-    const apiKey = process.env.PHANTOM_BUSTER_KEY;
-    if (!apiKey) {
-      console.log("⚠️ Phantom Buster key not set - skipping LinkedIn");
-      return false;
-    }
-
-    // Phantom Buster API for LinkedIn connection
-    await axios.post("https://api.phantombuster.com/api/v2/agents/launch", {
-      agentId: "7496",  // LinkedIn profile visitor agent
-      arguments: {
-        spreadsheetUrl: profileUrl,
-        numberOfLinesPerLaunch: 1,
-      }
-    }, {
-      headers: { "X-Phantom-Auth-Token": apiKey }
-    });
-
-    console.log(`✅ LinkedIn connection sent to ${name}`);
-    return true;
-  } catch (e) {
-    console.log(`⚠️ LinkedIn failed: ${e.message}`);
-    return false;
-  }
-}
-
-async function writeToGoogleSheets(companies, emailResults, linkedinResults) {
+async function writeToGoogleSheets(companies, emailResults, linkedinMessages) {
   try {
     const keyStr = process.env.GOOGLE_SHEETS_KEY;
     if (!keyStr) {
@@ -238,9 +218,9 @@ async function writeToGoogleSheets(companies, emailResults, linkedinResults) {
       c.name || "",
       c.website || "",
       c.founder || "",
-      c.co_founder || "",
+      c.linkedin || "",
       c.founder_email || "",
-      linkedinResults[i] ? "sent" : "pending",
+      linkedinMessages[i] || "",
       emailResults[i] ? "Yes" : "No",
     ]);
 
@@ -261,16 +241,18 @@ async function writeToGoogleSheets(companies, emailResults, linkedinResults) {
   }
 }
 
-async function trackOutreach(companies, emailResults = [], linkedinResults = []) {
+async function trackOutreach(companies, emailResults = [], linkedinMessages = []) {
   const tracking = {
     timestamp: new Date().toISOString(),
     total_companies: companies.length,
     emails_sent: emailResults.filter(r => r).length,
-    linkedin_connections_sent: linkedinResults.filter(r => r).length,
+    linkedin_connections_sent: 0,
+    linkedin_messages_generated: linkedinMessages.filter(m => m).length,
     companies: companies.map((c, i) => ({
       name: c.name,
       website: c.website,
-      linkedin_status: linkedinResults[i] ? "sent" : "pending",
+      linkedin_message: linkedinMessages[i] || "",
+      linkedin_status: linkedinMessages[i] ? "ready to send manually" : "pending",
       email_status: emailResults[i] ? "sent" : "pending",
       created_at: new Date().toISOString(),
     })),
@@ -292,19 +274,21 @@ async function main() {
       return;
     }
 
-    // Step 2: Send LinkedIn connections
-    console.log("\n💬 Sending LinkedIn connections...");
-    const linkedinResults = [];
+    // Step 2: Generate LinkedIn messages (saved to sheet for manual sending)
+    console.log("\n💬 Generating LinkedIn messages...");
+    const linkedinMessages = [];
     for (let i = 0; i < companies.length; i++) {
       const company = companies[i];
-      const result = await sendLinkedInViaBuster(
+      const message = await generateLinkedInMessage(
         company.name,
-        company.linkedin || "#"
+        company.founder || "there",
+        company.description || ""
       );
-      linkedinResults.push(result);
+      linkedinMessages.push(message);
+      console.log(`✅ Message ready for ${company.name}`);
     }
 
-    // Step 3: Send cold emails
+    // Step 3: Send cold emails via Gmail
     console.log("\n📧 Sending cold emails...");
     const emailResults = [];
     for (let i = 0; i < companies.length; i++) {
@@ -312,22 +296,23 @@ async function main() {
       const email = await generateColdEmail(
         company.name,
         company.website,
-        company.founder || "Team"
+        company.founder || "Team",
+        company.description || ""
       );
       const [subject, body] = email.split("BODY:").map(s => s.trim());
-      const result = await sendEmailViaSendGrid(
-        company.founder_email || "contact@" + company.website.replace("https://", "").replace("http://", ""),
+      const result = await sendEmailViaGmail(
+        company.founder_email || "contact@" + (company.website || "").replace("https://", "").replace("http://", "").replace(/\/.*/, ""),
         subject.replace("SUBJECT:", "").trim(),
-        body
+        body || email
       );
       emailResults.push(result);
     }
 
     // Step 4: Track everything
-    await trackOutreach(companies, emailResults, linkedinResults);
+    await trackOutreach(companies, emailResults, linkedinMessages);
 
     // Step 5: Write to Google Sheets
-    await writeToGoogleSheets(companies, emailResults, linkedinResults);
+    await writeToGoogleSheets(companies, emailResults, linkedinMessages);
 
     console.log("\n✅ DONE! Check companies_found.json, tracking.json, and your Google Sheet");
   } catch (error) {

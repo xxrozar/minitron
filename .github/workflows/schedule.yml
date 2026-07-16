@@ -12,9 +12,8 @@ jobs:
       - run: npm start
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
-          PHANTOM_BUSTER_KEY: ${{ secrets.PHANTOM_BUSTER_KEY }}
-          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           GOOGLE_SHEETS_KEY: ${{ secrets.GOOGLE_SHEETS_KEY }}
       - run: git config user.email "bot@minitron" && git config user.name "Bot" && git add . && git commit -m "Results" 2>/dev/null || true && git push 2>/dev/null || true
         continue-on-error: true

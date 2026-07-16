@@ -37,9 +37,10 @@ For each company, provide:
 - Brief description (1 line)
 - LinkedIn company page URL (estimate based on name)
 - CEO/Founder name (if known)
+- Co-founder name (if known)
 - Country
 
-Format ONLY as JSON array, no other text. Example: [{"name":"X","website":"url","description":"desc","linkedin":"url","founder":"name","country":"India"}]`,
+Format ONLY as JSON array, no other text. Example: [{"name":"X","website":"url","description":"desc","linkedin":"url","founder":"name","co_founder":"name","country":"India"}]`,
         },
       ],
     }, {
@@ -151,39 +152,7 @@ withstrive.in`;
   }
 }
 
-async function sendEmailViaGmail(toEmail, subject, body) {
-  try {
-    const user = process.env.EMAIL_USER;
-    const pass = process.env.EMAIL_PASSWORD;
-    if (!user || !pass) {
-      console.log("⚠️ Email credentials not set - skipping email");
-      return false;
-    }
-
-    const nodemailer = require("nodemailer");
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST || "smtp.zoho.in",
-      port: 465,
-      secure: true,
-      auth: { user, pass },
-    });
-
-    await transporter.sendMail({
-      from: user,
-      to: toEmail,
-      subject: subject,
-      text: body,
-    });
-
-    console.log(`✅ Email sent to ${toEmail}`);
-    return true;
-  } catch (e) {
-    console.log(`⚠️ Email failed: ${e.message}`);
-    return false;
-  }
-}
-
-async function writeToGoogleSheets(companies, emailResults, linkedinMessages) {
+async function writeToGoogleSheets(companies, emailDrafts, linkedinMessages) {
   try {
     const keyStr = process.env.GOOGLE_SHEETS_KEY;
     if (!keyStr) {
@@ -206,15 +175,16 @@ async function writeToGoogleSheets(companies, emailResults, linkedinMessages) {
       c.country || "",
       c.website || "",
       c.founder || "",
+      c.co_founder || "",
       c.linkedin || "",
-      c.founder_email || "",
       linkedinMessages[i] || "",
-      emailResults[i] ? "Yes" : "No",
+      emailDrafts[i] || "",
+      "pending",
     ]);
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SHEET_ID,
-      range: "Sheet1!A2:I",
+      range: "Sheet1!A2:J",
       valueInputOption: "USER_ENTERED",
       resource: {
         values: rows,
@@ -229,19 +199,22 @@ async function writeToGoogleSheets(companies, emailResults, linkedinMessages) {
   }
 }
 
-async function trackOutreach(companies, emailResults = [], linkedinMessages = []) {
+async function trackOutreach(companies, emailDrafts = [], linkedinMessages = []) {
   const tracking = {
     timestamp: new Date().toISOString(),
     total_companies: companies.length,
-    emails_sent: emailResults.filter(r => r).length,
-    linkedin_connections_sent: 0,
+    emails_sent: 0,
+    email_drafts_generated: emailDrafts.filter(d => d).length,
     linkedin_messages_generated: linkedinMessages.filter(m => m).length,
     companies: companies.map((c, i) => ({
       name: c.name,
       website: c.website,
+      country: c.country || "",
+      founder: c.founder || "",
+      co_founder: c.co_founder || "",
       linkedin_message: linkedinMessages[i] || "",
-      linkedin_status: linkedinMessages[i] ? "ready to send manually" : "pending",
-      email_status: emailResults[i] ? "sent" : "pending",
+      email_draft: emailDrafts[i] || "",
+      status: "ready for manual outreach",
       created_at: new Date().toISOString(),
     })),
   };
@@ -276,9 +249,9 @@ async function main() {
       console.log(`✅ Message ready for ${company.name}`);
     }
 
-    // Step 3: Send cold emails via Gmail
-    console.log("\n📧 Sending cold emails...");
-    const emailResults = [];
+    // Step 3: Generate email drafts (saved to sheet for manual sending)
+    console.log("\n📧 Generating email drafts...");
+    const emailDrafts = [];
     for (let i = 0; i < companies.length; i++) {
       const company = companies[i];
       const email = await generateColdEmail(
@@ -287,20 +260,15 @@ async function main() {
         company.founder || "Team",
         company.description || ""
       );
-      const [subject, body] = email.split("BODY:").map(s => s.trim());
-      const result = await sendEmailViaGmail(
-        company.founder_email || "contact@" + (company.website || "").replace("https://", "").replace("http://", "").replace(/\/.*/, ""),
-        subject.replace("SUBJECT:", "").trim(),
-        body || email
-      );
-      emailResults.push(result);
+      emailDrafts.push(email);
+      console.log(`✅ Email draft ready for ${company.name}`);
     }
 
     // Step 4: Track everything
-    await trackOutreach(companies, emailResults, linkedinMessages);
+    await trackOutreach(companies, emailDrafts, linkedinMessages);
 
     // Step 5: Write to Google Sheets
-    await writeToGoogleSheets(companies, emailResults, linkedinMessages);
+    await writeToGoogleSheets(companies, emailDrafts, linkedinMessages);
 
     console.log("\n✅ DONE! Check companies_found.json, tracking.json, and your Google Sheet");
   } catch (error) {

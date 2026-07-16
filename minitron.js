@@ -1,14 +1,9 @@
 #!/usr/bin/env node
-const Anthropic = require("@anthropic-ai/sdk");
 const fs = require("fs");
 const path = require("path");
 const axios = require("axios");
 const { google } = require("googleapis");
 require("dotenv").config();
-
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
 
 const COMPANIES_FILE = "companies_found.json";
 const TRACKING_FILE = "tracking.json";
@@ -16,13 +11,20 @@ const TRACKING_FILE = "tracking.json";
 async function findAICompanies() {
   console.log("🔍 Finding 10 AI companies...");
 
-  const response = await client.messages.create({
-    model: "claude-opus-4-8",
-    max_tokens: 2000,
-    messages: [
-      {
-        role: "user",
-        content: `Find 10 emerging AI companies that are:
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) {
+    console.log("⚠️ GROQ_API_KEY not set");
+    return [];
+  }
+
+  try {
+    const response = await axios.post("https://api.groq.com/openai/v1/chat/completions", {
+      model: "mixtral-8x7b-32768",
+      max_tokens: 2000,
+      messages: [
+        {
+          role: "user",
+          content: `Find 10 emerging AI companies that are:
 1. Founded in last 3 years
 2. Have less than 100 employees (target early stage)
 3. Focus on B2B SaaS or enterprise AI
@@ -35,13 +37,17 @@ For each company, provide:
 - LinkedIn company page URL (estimate based on name)
 - CEO/Founder name (if known)
 
-Format as JSON array.`,
+Format ONLY as JSON array, no other text. Example: [{"name":"X","website":"url","description":"desc","linkedin":"url","founder":"name"}]`,
+        },
+      ],
+    }, {
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
       },
-    ],
-  });
+    });
 
-  try {
-    const content = response.content[0].text;
+    const content = response.data.choices[0].message.content;
     const jsonMatch = content.match(/\[[\s\S]*\]/);
     if (jsonMatch) {
       const companies = JSON.parse(jsonMatch[0]);
@@ -50,19 +56,18 @@ Format as JSON array.`,
       return companies;
     }
   } catch (e) {
-    console.error("Failed to parse companies:", e.message);
+    console.error("Groq API error:", e.message);
   }
   return [];
 }
 
 async function generateLinkedInMessage(company, founder, description) {
   try {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey || apiKey.length < 20) throw new Error("No API key");
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) throw new Error("No GROQ API key");
 
-    const client = new Anthropic({ apiKey });
-    const response = await client.messages.create({
-      model: "claude-opus-4-8",
+    const response = await axios.post("https://api.groq.com/openai/v1/chat/completions", {
+      model: "mixtral-8x7b-32768",
       max_tokens: 300,
       messages: [
         {
@@ -83,9 +88,14 @@ WithStrive
 IMPORTANT: Keep under 250 characters, make it personalized based on ${description}, remove all dashes between words.`,
         },
       ],
+    }, {
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
     });
 
-    return response.content[0].text;
+    return response.data.choices[0].message.content;
   } catch (e) {
     return `Hi ${founder}, I've been following ${company}'s work and I'm impressed. We help AI teams scale infrastructure 10x faster. Would love to connect!`;
   }
@@ -93,12 +103,11 @@ IMPORTANT: Keep under 250 characters, make it personalized based on ${descriptio
 
 async function generateColdEmail(company, website, founder, description) {
   try {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey || apiKey.length < 20) throw new Error("No API key");
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) throw new Error("No GROQ API key");
 
-    const client = new Anthropic({ apiKey });
-    const response = await client.messages.create({
-      model: "claude-opus-4-8",
+    const response = await axios.post("https://api.groq.com/openai/v1/chat/completions", {
+      model: "mixtral-8x7b-32768",
       max_tokens: 400,
       messages: [
         {
@@ -135,9 +144,14 @@ withstrive.in
 IMPORTANT: Personalize with details about ${company} and ${description}. Remove all dashes.`,
         },
       ],
+    }, {
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
     });
 
-    return response.content[0].text;
+    return response.data.choices[0].message.content;
   } catch (e) {
     return `SUBJECT: 3 Ways AI Teams Waste Time
 BODY:

@@ -19,7 +19,7 @@ async function findAICompanies() {
 
   try {
     const response = await axios.post("https://api.groq.com/openai/v1/chat/completions", {
-      model: "mixtral-8x7b-32768",
+      model: "llama-3.3-70b-versatile",
       max_tokens: 2000,
       messages: [
         {
@@ -67,7 +67,7 @@ async function generateLinkedInMessage(company, founder, description) {
     if (!apiKey) throw new Error("No GROQ API key");
 
     const response = await axios.post("https://api.groq.com/openai/v1/chat/completions", {
-      model: "mixtral-8x7b-32768",
+      model: "llama-3.3-70b-versatile",
       max_tokens: 300,
       messages: [
         {
@@ -107,7 +107,7 @@ async function generateColdEmail(company, website, founder, description) {
     if (!apiKey) throw new Error("No GROQ API key");
 
     const response = await axios.post("https://api.groq.com/openai/v1/chat/completions", {
-      model: "mixtral-8x7b-32768",
+      model: "llama-3.3-70b-versatile",
       max_tokens: 400,
       messages: [
         {

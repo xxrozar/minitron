@@ -28,7 +28,8 @@ async function findAICompanies() {
 1. Founded in last 3 years
 2. Have less than 100 employees (target early stage)
 3. Focus on B2B SaaS or enterprise AI
-4. Based in US/EU
+4. Mix of locations: 5 from India (Bangalore, Mumbai, Delhi, Hyderabad, Pune) and 5 from abroad (US, EU, UK, Singapore, UAE)
+5. Well funded or growing fast (good potential clients)
 
 For each company, provide:
 - Name
@@ -36,8 +37,9 @@ For each company, provide:
 - Brief description (1 line)
 - LinkedIn company page URL (estimate based on name)
 - CEO/Founder name (if known)
+- Country
 
-Format ONLY as JSON array, no other text. Example: [{"name":"X","website":"url","description":"desc","linkedin":"url","founder":"name"}]`,
+Format ONLY as JSON array, no other text. Example: [{"name":"X","website":"url","description":"desc","linkedin":"url","founder":"name","country":"India"}]`,
         },
       ],
     }, {
@@ -76,16 +78,10 @@ async function generateLinkedInMessage(company, founder, description) {
 Company focus: ${description}
 
 Use this template and customize it:
-Hi ${founder},
-I've been following ${company}'s work in AI and infrastructure, and I'm impressed with what you're building.
-We specialize in helping AI teams like yours scale infrastructure 10x faster. Recently worked with teams doing similar things helped them deploy in 2 weeks instead of 2 months.
-Not sure if that's relevant to your current roadmap, but thought I'd say hi.
-Would be great to connect!
-Best,
-Qaush
-WithStrive
+Hi ${founder}, impressed by what you're building at ${company}. We help AI teams ship to production in weeks instead of months. Would love to connect!
+Gul Mohammed, WithStrive
 
-IMPORTANT: Keep under 250 characters, make it personalized based on ${description}, remove all dashes between words.`,
+IMPORTANT: Keep under 250 characters, personalize based on ${description}, no dashes. Output ONLY the message.`,
         },
       ],
     }, {
@@ -97,7 +93,7 @@ IMPORTANT: Keep under 250 characters, make it personalized based on ${descriptio
 
     return response.data.choices[0].message.content;
   } catch (e) {
-    return `Hi ${founder}, I've been following ${company}'s work and I'm impressed. We help AI teams scale infrastructure 10x faster. Would love to connect!`;
+    return `Hi ${founder}, impressed by what you're building at ${company}. We help AI teams ship to production in weeks instead of months. Would love to connect! Gul Mohammed, WithStrive`;
   }
 }
 
@@ -112,36 +108,26 @@ async function generateColdEmail(company, website, founder, description) {
       messages: [
         {
           role: "user",
-          content: `Create a PERSONALIZED cold email for ${founder} at ${company} (${description}).
-Use this template and customize it heavily:
+          content: `Create a SHORT, catchy cold email for ${founder} at ${company} (${description}).
+Use this template and customize it:
 
-SUBJECT: 3 Ways AI Teams Waste Time (and How We Fixed It)
+SUBJECT: Quick question about ${company}
 
 BODY:
 Hi ${founder},
 
-Most AI founders spend 80% of their time on infrastructure instead of building features.
-We noticed this pattern across 30+ AI companies we've worked with:
+Saw what you're building at ${company} and it caught my attention.
 
-Weeks spent on deployment pipelines
-Months getting models to production
-Constant firefighting with infrastructure
+Most AI teams lose months wrestling with infrastructure instead of shipping features. We fix that. WithStrive helps teams like yours go from prototype to production in weeks, not months.
 
-WithStrive helps AI companies like ${company}:
-
-1. Deploy ML models in days (not months)
-2. Scale infrastructure without technical debt
-3. Go from prototype to production in weeks
-
-Would love to explore if we could do the same for ${company}.
-Are you open to a 15 minute conversation?
+Worth a quick 15 minute chat?
 
 Best,
-Qaush
+Gul Mohammed
 WithStrive
 withstrive.in
 
-IMPORTANT: Personalize with details about ${company} and ${description}. Remove all dashes.`,
+IMPORTANT: Keep the body under 80 words. Make the first line specific to ${description}. No dashes, no fluff, no buzzwords. Output ONLY the subject and body in the format above.`,
         },
       ],
     }, {
@@ -153,14 +139,15 @@ IMPORTANT: Personalize with details about ${company} and ${description}. Remove 
 
     return response.data.choices[0].message.content;
   } catch (e) {
-    return `SUBJECT: 3 Ways AI Teams Waste Time
+    return `SUBJECT: Quick question about ${company}
 BODY:
 Hi ${founder},
-We help AI companies like ${company} deploy models in days instead of months.
-Would love a quick chat?
+We help AI companies like ${company} ship to production in weeks, not months.
+Worth a quick chat?
 Best,
-Qaush
-WithStrive`;
+Gul Mohammed
+WithStrive
+withstrive.in`;
   }
 }
 
@@ -216,6 +203,7 @@ async function writeToGoogleSheets(companies, emailResults, linkedinMessages) {
     const rows = companies.map((c, i) => [
       new Date().toLocaleDateString(),
       c.name || "",
+      c.country || "",
       c.website || "",
       c.founder || "",
       c.linkedin || "",
@@ -226,7 +214,7 @@ async function writeToGoogleSheets(companies, emailResults, linkedinMessages) {
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SHEET_ID,
-      range: "Sheet1!A2:H",
+      range: "Sheet1!A2:I",
       valueInputOption: "USER_ENTERED",
       resource: {
         values: rows,
